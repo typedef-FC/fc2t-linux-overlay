@@ -103,27 +103,65 @@ int main( )
      * create window and renderer
      * convert to unique_ptr after by transferring ownership
      */
-    SDL_Window * _window;
+    SDL_Window * _parent, * _window;
     SDL_Renderer * _renderer;
 
-    SDL_SetHint( SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1" );
-    if( !SDL_CreateWindowAndRenderer(
-            "fc2t overlay",
-            static_cast< int >(window_dimensions[ 2 ]),
-            static_cast< int >(window_dimensions[ 3 ]),
-            SDL_WINDOW_ALWAYS_ON_TOP |
-            SDL_WINDOW_VULKAN |
-            SDL_WINDOW_NOT_FOCUSABLE |
-            SDL_WINDOW_TRANSPARENT |
-            SDL_WINDOW_BORDERLESS,
-            &_window,
-            &_renderer
-    ) )
+    _parent = SDL_CreateWindow(
+        "fc2t overlay",
+        0,
+        0,
+        0
+    );
+
+    if( !_parent )
     {
-        log( "window or renderer could not be created: {}\n", SDL_GetError() );
+        log( "parent window could not be created: {}\n", SDL_GetError() );
         std::getchar();
         return -1;
     }
+
+    _window = SDL_CreatePopupWindow(
+        _parent,
+        static_cast< int >( window_dimensions[ 0 ] ),
+        static_cast< int >( window_dimensions[ 1 ] ),
+        static_cast< int >( window_dimensions[ 2 ] ),
+        static_cast< int >( window_dimensions[ 3 ] ),
+        SDL_WINDOW_TOOLTIP |
+        SDL_WINDOW_VULKAN |
+        SDL_WINDOW_TRANSPARENT |
+        SDL_WINDOW_BORDERLESS |
+        SDL_WINDOW_ALWAYS_ON_TOP
+    );
+
+    if( !_window )
+    {
+        _parent = nullptr;
+
+        log( "popup window could not be created: {}\n", SDL_GetError() );
+        std::getchar();
+        return -1;
+    }
+
+    _renderer = SDL_CreateRenderer(
+        _window,
+        nullptr
+    );
+
+    if( !_renderer)
+    {
+        _parent = nullptr;
+        _window = nullptr;
+        _renderer = nullptr;
+
+        log( " renderer could not be created: {}\n", SDL_GetError() );
+        std::getchar();
+        return -1;
+    }
+
+    std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> parent(
+            _parent,
+            SDL_DestroyWindow
+    );
 
     std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window(
             _window,
@@ -134,6 +172,7 @@ int main( )
             _renderer,
             SDL_DestroyRenderer
     );
+
     SDL_SetWindowPosition(
         window.get(),
         static_cast< int >( window_dimensions[ 0 ]),
@@ -143,10 +182,27 @@ int main( )
     log( "window and renderer created" );
 
     /**
+     * prepare font cache.
+     * see FC2_TEAM_DRAW_TYPE_TEXT case about this struct and about font caching.
+     *
+     * the initial release handled this with raw pointers. it could have been avoided by using unique_ptr.
+     * this should properly handle the fonts being closed and the pointer going through a proper deleter.
+     */
+    struct cache_destruction
+    {
+        auto operator( )( TTF_Font * font ) const -> void
+        {
+            if( !font ) return;
+            TTF_CloseFont( font );
+        }
+    };
+    typedef std::unique_ptr< TTF_Font, cache_destruction > font_cache_information;
+    std::unordered_map< int, font_cache_information > fonts_cache;
+
+    /**
      * rendering
      */
     SDL_Event event;
-    std::unordered_map< int, TTF_Font * > fonts_cache;
     while (true)
     {
         SDL_PollEvent(&event);
@@ -173,6 +229,9 @@ int main( )
          * handle requests now
          */
         auto instance = renderer.get();
+
+        SDL_SetRenderDrawColor(instance, 0, 0, 0, 0 );
+        SDL_RenderClear(instance);
         for( const auto & i : drawing )
         {
 
@@ -195,8 +254,6 @@ int main( )
                 static_cast< float >( i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT ] ),
                 static_cast< float >( i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM ] )
             };
-
-            //log("{}, {}, {} {}\n", i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_LEFT ], i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_TOP ], i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT ], i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM ]);
 
             switch( i.style[ FC2_TEAM_DRAW_STYLE_TYPE ] )
             {
@@ -256,12 +313,12 @@ int main( )
                                 break;
                             }
 
-                            fonts_cache[ font_size ] = font;
+                            fonts_cache[ font_size ] = std::unique_ptr< TTF_Font, cache_destruction >( font );
                             log( "font {}:{} created", font_path, font_size );
                         }
                         else
                         {
-                            font = fonts_cache[ font_size ];
+                            font = fonts_cache[ font_size ].get();
                         }
                     }
 
@@ -276,6 +333,11 @@ int main( )
                                     i.style[ FC2_TEAM_DRAW_STYLE_ALPHA ]
                             )
                     );
+                    if( !surface )
+                    {
+                        log( "{} surface could not be created in this frame.\n", font_path );
+                        break;
+                    }
 
                     const SDL_FRect rect = { dimensions_f[ 0 ], dimensions_f[ 1 ], static_cast< float >( surface->w ), static_cast< float >( surface->h ) };
 
@@ -283,6 +345,11 @@ int main( )
                             instance,
                             surface
                     );
+                    if( !texture )
+                    {
+                        log( "{} texture could not be created in this frame.\n", font_path );
+                        break;
+                    }
 
                     SDL_DestroySurface( surface );
                     SDL_RenderTexture(
@@ -307,14 +374,9 @@ int main( )
     /**
      * exit
      */
+    parent.reset();
     window.reset();
     renderer.reset();
-
-    for( auto & i : fonts_cache )
-    {
-        TTF_CloseFont( i.second );
-        i.second = nullptr;
-    }
     fonts_cache.clear();
 
     TTF_Quit();
