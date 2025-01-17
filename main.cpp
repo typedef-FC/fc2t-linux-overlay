@@ -44,6 +44,11 @@ int main( )
      * fc2t check
      */
     const auto session_information = fc2::get_session();
+    if( fc2::get_error() != FC2_TEAM_ERROR_NO_ERROR )
+    {
+        log( "solution doesn't appear to be open" );
+        return -1;
+    }
     log( "started. welcome {}", session_information.username );
 
     /**
@@ -57,6 +62,7 @@ int main( )
     window_dimensions[ 1 ] = fc2::call< unsigned int >( "wayland_overlay_y", FC2_LUA_TYPE_INT );
     window_dimensions[ 2 ] = fc2::call< unsigned int >( "wayland_overlay_w", FC2_LUA_TYPE_INT );
     window_dimensions[ 3 ] = fc2::call< unsigned int >( "wayland_overlay_h", FC2_LUA_TYPE_INT );
+
     log(
         "window dimensions: {}, {} - {}x{}",
         window_dimensions[ 0 ],
@@ -102,6 +108,14 @@ int main( )
     /**
      * create window and renderer
      * convert to unique_ptr after by transferring ownership
+     *
+     * we set the parent window to 1, 1 because SDL_CreatePopupWindow position
+     * is relative to the parent window. without this, the overlay will create itself
+     * wherever the DE tells it to create (usually where your cursor is or tiled.
+     *
+     * the reason for 1:1 is because on Hyprland (assuming other DEs do this too), if the position
+     * is 0,0, the DE will automatically center the window or move it somewhere predetermined.
+     * same applies for window size.
      */
     SDL_Window * _parent, * _window;
     SDL_Renderer * _renderer;
@@ -119,6 +133,18 @@ int main( )
         std::getchar();
         return -1;
     }
+
+    SDL_SetWindowPosition(
+        _parent,
+        1,
+        1
+    );
+
+    SDL_SetWindowSize(
+        _parent,
+        1,
+        1
+    );
 
     _window = SDL_CreatePopupWindow(
         _parent,
@@ -175,8 +201,8 @@ int main( )
 
     SDL_SetWindowPosition(
         window.get(),
-        static_cast< int >( window_dimensions[ 0 ]),
-        static_cast< int >( window_dimensions[ 1 ])
+        static_cast< int >( window_dimensions[ 0 ] ),
+        static_cast< int >( window_dimensions[ 1 ] )
     );
 
     log( "window and renderer created" );
