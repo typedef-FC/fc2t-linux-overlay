@@ -136,8 +136,8 @@ int main( )
 
     SDL_SetWindowPosition(
         _parent,
-        1,
-        1
+        static_cast< int >( window_dimensions[ 0 ] ),
+        static_cast< int >( window_dimensions[ 1 ] )
     );
 
     SDL_SetWindowSize(
@@ -148,8 +148,8 @@ int main( )
 
     _window = SDL_CreatePopupWindow(
         _parent,
-        static_cast< int >( window_dimensions[ 0 ] ),
-        static_cast< int >( window_dimensions[ 1 ] ),
+        0,
+        0,
         static_cast< int >( window_dimensions[ 2 ] ),
         static_cast< int >( window_dimensions[ 3 ] ),
         SDL_WINDOW_TOOLTIP |
@@ -197,12 +197,6 @@ int main( )
     std::unique_ptr<SDL_Renderer, decltype(&SDL_DestroyRenderer)> renderer(
             _renderer,
             SDL_DestroyRenderer
-    );
-
-    SDL_SetWindowPosition(
-        window.get(),
-        static_cast< int >( window_dimensions[ 0 ] ),
-        static_cast< int >( window_dimensions[ 1 ] )
     );
 
     log( "window and renderer created" );
@@ -254,7 +248,7 @@ int main( )
         /**
          * handle requests now
          */
-        auto instance = renderer.get();
+        const auto instance = renderer.get();
 
         SDL_SetRenderDrawColor(instance, 0, 0, 0, 0 );
         SDL_RenderClear(instance);
@@ -384,7 +378,6 @@ int main( )
                         nullptr,
                         &rect
                     );
-
                     SDL_DestroyTexture( texture );
                     break;
                 }
