@@ -117,10 +117,7 @@ int main( )
      * is 0,0, the DE will automatically center the window or move it somewhere predetermined.
      * same applies for window size.
      */
-    SDL_Window * _parent, * _window;
-    SDL_Renderer * _renderer;
-
-    _parent = SDL_CreateWindow(
+    SDL_Window * _parent = SDL_CreateWindow(
         "fc2t overlay",
         0,
         0,
@@ -146,12 +143,12 @@ int main( )
         1
     );
 
-    _window = SDL_CreatePopupWindow(
+    SDL_Window * _window = SDL_CreatePopupWindow(
         _parent,
         0,
         0,
-        static_cast< int >( window_dimensions[ 2 ] ),
-        static_cast< int >( window_dimensions[ 3 ] ),
+        static_cast < int >( window_dimensions[ 2 ] ),
+        static_cast < int >( window_dimensions[ 3 ] ),
         SDL_WINDOW_TOOLTIP |
         SDL_WINDOW_VULKAN |
         SDL_WINDOW_TRANSPARENT |
@@ -168,7 +165,7 @@ int main( )
         return -1;
     }
 
-    _renderer = SDL_CreateRenderer(
+    SDL_Renderer * _renderer = SDL_CreateRenderer(
         _window,
         nullptr
     );
@@ -252,7 +249,7 @@ int main( )
 
         SDL_SetRenderDrawColor(instance, 0, 0, 0, 0 );
         SDL_RenderClear(instance);
-        for( const auto & i : drawing )
+        for( const auto & [text, dimensions, style] : drawing )
         {
 
             /**
@@ -261,21 +258,21 @@ int main( )
              */
             SDL_SetRenderDrawColor(
                 instance,
-                i.style[ FC2_TEAM_DRAW_STYLE_RED ],
-                i.style[ FC2_TEAM_DRAW_STYLE_GREEN ],
-                i.style[ FC2_TEAM_DRAW_STYLE_BLUE ],
-                i.style[ FC2_TEAM_DRAW_STYLE_ALPHA ]
+                style[ FC2_TEAM_DRAW_STYLE_RED ],
+                style[ FC2_TEAM_DRAW_STYLE_GREEN ],
+                style[ FC2_TEAM_DRAW_STYLE_BLUE ],
+                style[ FC2_TEAM_DRAW_STYLE_ALPHA ]
             );
 
             const std::array< float, 4 > dimensions_f =
             {
-                static_cast< float >( i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_LEFT ] ),
-                static_cast< float >( i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_TOP ] ),
-                static_cast< float >( i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT ] ),
-                static_cast< float >( i.dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM ] )
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_LEFT ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_TOP ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM ] )
             };
 
-            switch( i.style[ FC2_TEAM_DRAW_STYLE_TYPE ] )
+            switch( style[ FC2_TEAM_DRAW_STYLE_TYPE ] )
             {
                 case FC2_TEAM_DRAW_TYPE_BOX:
                 {
@@ -323,8 +320,7 @@ int main( )
                      */
                     TTF_Font * font = nullptr;
                     {
-                        const auto font_size = i.style[ FC2_TEAM_DRAW_STYLE_FONT_SIZE ];
-                        if( fonts_cache.find( font_size ) == fonts_cache.end() )
+                        if( const auto font_size = style[ FC2_TEAM_DRAW_STYLE_FONT_SIZE ]; !fonts_cache.contains( font_size ) )
                         {
                             font = TTF_OpenFont( font_path.c_str(), static_cast< float >( font_size ) );
                             if( !font )
@@ -344,13 +340,13 @@ int main( )
 
                     const auto surface = TTF_RenderText_Solid(
                             font,
-                            i.text,
-                            strlen( i.text ),
+                            text,
+                            strlen( text ),
                             SDL_Color(
-                                    i.style[ FC2_TEAM_DRAW_STYLE_RED ],
-                                    i.style[ FC2_TEAM_DRAW_STYLE_GREEN ],
-                                    i.style[ FC2_TEAM_DRAW_STYLE_BLUE ],
-                                    i.style[ FC2_TEAM_DRAW_STYLE_ALPHA ]
+                                    style[ FC2_TEAM_DRAW_STYLE_RED ],
+                                    style[ FC2_TEAM_DRAW_STYLE_GREEN ],
+                                    style[ FC2_TEAM_DRAW_STYLE_BLUE ],
+                                    style[ FC2_TEAM_DRAW_STYLE_ALPHA ]
                             )
                     );
                     if( !surface )
