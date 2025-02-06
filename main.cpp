@@ -32,6 +32,11 @@
 #include <unordered_map>
 
 /**
+ * std::array
+ */
+#include <array>
+
+/**
  * logging macro
  */
 #ifndef log
@@ -176,7 +181,7 @@ int main( )
         _window = nullptr;
         _renderer = nullptr;
 
-        log( " renderer could not be created: {}\n", SDL_GetError() );
+        log( "renderer could not be created: {}\n", SDL_GetError() );
         std::getchar();
         return -1;
     }
@@ -235,7 +240,7 @@ int main( )
          * the solution is probably closed. therefore, we will automatically
          * close this too.
          */
-        const auto drawing = fc2::get_drawing();
+        const auto drawing = fc2::draw::get();
         if( fc2::get_error() != FC2_TEAM_ERROR_NO_ERROR )
         {
             log( "solution appears to have closed" );
