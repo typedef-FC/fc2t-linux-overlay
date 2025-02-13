@@ -383,6 +383,59 @@ int main( )
                     break;
                 }
 
+                case FC2_TEAM_DRAW_TYPE_CIRCLE:
+                {
+                    const float center_x = ( dimensions_f[ 0 ] + dimensions_f[ 2 ] ) / 2.0f;
+                    const float center_y = ( dimensions_f[ 1 ] + dimensions_f[ 3 ] ) / 2.0f;
+                    const float radius = dimensions_f[ 2 ] / 2.0f;
+
+                    constexpr int segments = 100;
+                    for( int i = 0; i < segments; ++i )
+                    {
+                        const float t1 = ( 2.0f * M_PI * i ) / segments;
+                        const float t2 = ( 2.0f * M_PI * ( i + 1 ) ) / segments;
+
+                        const float x1 = center_x + radius * std::cos( t1 );
+                        const float y1 = center_y + radius * std::sin( t1 );
+                        const float x2 = center_x + radius * std::cos( t2 );
+                        const float y2 = center_y + radius * std::sin( t2 );
+
+                        SDL_RenderLine(
+                            instance,
+                            x1,
+                            y1,
+                            x2,
+                            y2
+                        );
+                    }
+                    break;
+                }
+
+                case FC2_TEAM_DRAW_TYPE_CIRCLE_FILLED:
+                {
+                    const float center_x = ( dimensions_f[ 0 ] + dimensions_f[ 2 ] ) / 2.0f;
+                    const float center_y = ( dimensions_f[ 1 ] + dimensions_f[ 3 ] ) / 2.0f;
+                    const float radius = dimensions_f[ 2 ] / 2.0f;
+
+                    for( float w = 0; w < radius * 2; w ++ )
+                    {
+                        for( float h = 0; h < radius * 2; h ++ )
+                        {
+                            const float dx = radius - w;
+                            const float dy = radius - h;
+                            if( ( dx * dx + dy * dy ) <= ( radius * radius ) )
+                            {
+                                SDL_RenderPoint(
+                                    instance,
+                                    center_x + dx,
+                                    center_y + dy
+                                );
+                            }
+                        }
+                    }
+                    break;
+                }
+
                 default:
                 case FC2_TEAM_DRAW_TYPE_NONE: break;
             }

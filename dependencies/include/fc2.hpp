@@ -188,6 +188,8 @@ enum FC2_TEAM_DRAW_TYPE : int
     FC2_TEAM_DRAW_TYPE_LINE,
     FC2_TEAM_DRAW_TYPE_BOX_FILLED,
     FC2_TEAM_DRAW_TYPE_TEXT,
+    FC2_TEAM_DRAW_TYPE_CIRCLE,
+    FC2_TEAM_DRAW_TYPE_CIRCLE_FILLED,
 };
 
 /**
@@ -251,6 +253,7 @@ enum FC2_TEAM_DRAW_DIMENSIONS : int
     #define SHM_KEY SHM_KEY_LINUX_GLOBAL
 #endif
 #else
+#define NOMINMAX
 #include <windows.h>
 #include <iterator>
 
