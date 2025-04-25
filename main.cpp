@@ -7,7 +7,7 @@
 /*
  * https://github.com/fantasy-cat/FC2T
  */
-#define FC2_TEAM_CONSTELLATION4
+//#define FC2_TEAM_CONSTELLATION4
 #include <fc2.hpp>
 
 /**
