@@ -29,4 +29,5 @@ target_link_libraries( wayland_overlay PRIVATE
         fmt::fmt
         "${CMAKE_SOURCE_DIR}/dependencies/libSDL3_ttf.a"
         freetype
+        X11
 )

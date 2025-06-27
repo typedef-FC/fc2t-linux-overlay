@@ -7,7 +7,6 @@
 /*
  * https://github.com/fantasy-cat/FC2T
  */
-//#define FC2_TEAM_CONSTELLATION4
 #include <fc2.hpp>
 
 /**
@@ -37,11 +36,35 @@
 #include <array>
 
 /**
+ * Xlib
+ */
+#include <X11/Xlib.h>
+#include <X11/Xmu/WinUtil.h>
+
+/**
+ * std::call_once
+ */
+#include <mutex>
+
+/**
+ * std::function
+ */
+#include <functional>
+
+/**
  * logging macro
  */
 #ifndef log
     #define log(fmt_str, ...) fmt::println("[wayland-overlay] " fmt_str, ##__VA_ARGS__)
 #endif
+
+int x11_error_handler( Display * display, XErrorEvent * event )
+{
+    char error_text[1024];
+    XGetErrorText( display, event->error_code, error_text, sizeof( error_text ) );
+    log( "x11 error: {}", error_text );
+    return 0;
+}
 
 int main( )
 {
@@ -67,6 +90,177 @@ int main( )
     window_dimensions[ 1 ] = fc2::call< unsigned int >( "wayland_overlay_y", FC2_LUA_TYPE_INT );
     window_dimensions[ 2 ] = fc2::call< unsigned int >( "wayland_overlay_w", FC2_LUA_TYPE_INT );
     window_dimensions[ 3 ] = fc2::call< unsigned int >( "wayland_overlay_h", FC2_LUA_TYPE_INT );
+
+    const auto line_thickness = fc2::call< bool >( "wayland_overlay_line_thickness", FC2_LUA_TYPE_BOOLEAN );
+    if ( line_thickness )
+    {
+        log( "line_thickness is enabled, therefore lines might be slower to render");
+    }
+
+    /**
+     * get sync settings (x11 only)
+     */
+    static auto find_window = [&window_dimensions ]( ) -> void
+    {
+        /**
+         * get x11 display
+         */
+        static const auto display = XOpenDisplay( nullptr );
+        static int default_screen = 0;
+        static Window game_window = 0;
+        if ( !display )
+        {
+            /**
+             * x11 not available
+             */
+            return;
+        }
+
+        /**
+        * initialization
+        */
+        std::once_flag co_x11_init;
+        std::call_once( co_x11_init, [ & ] ( ) -> bool
+        {
+            default_screen = XDefaultScreen( display );
+            const auto root_screen = XRootWindow( display, default_screen );
+            if ( !root_screen )
+            {
+                log( "x11 root window could not be found" );
+                return false;
+            }
+
+            XSetErrorHandler( x11_error_handler );
+            log( "x11 initialized" );
+
+            /**
+             * search for window
+             * putting this into a function so we can recursively use
+             */
+            const std::function< Window( Window ) > search = [ display, &search ]( const Window root ) -> Window
+            {
+                Window root_window, parent_window;
+                Window * children = nullptr;
+                unsigned int num_of_children;
+
+                if ( !XQueryTree(
+                    display,
+                    root,
+                    &root_window,
+                    &parent_window,
+                    &children,
+                    &num_of_children
+                ))
+                {
+                    log( "x11 query tree could not be performed" );
+                    return 0;
+                }
+
+                for ( auto i = 0; i < num_of_children; i ++ )
+                {
+                    XClassHint hint;
+                    if ( XGetClassHint( display, children[ i ], &hint ) )
+                    {
+                        /**
+                         * missing a class name for some reason
+                         */
+                        if ( !hint.res_class )
+                        {
+                            continue;
+                        }
+
+                        /**
+                         * cs2 or tf2 found
+                         */
+                        if ( !strcmp(hint.res_class, "cs2") || !strcmp(hint.res_class, "tf_linux64" ) )
+                        {
+                            XFree( hint.res_class );
+                            XFree( hint.res_name );
+                            const auto window_id = children[ i ];
+                            XFree( children );
+                            return window_id;
+                        }
+
+                        /**
+                         * clear memory if these exist
+                         */
+                        if ( hint.res_class )
+                        {
+                            XFree( hint.res_class );
+                        }
+
+                        if ( hint.res_name )
+                        {
+                            XFree( hint.res_name );
+                        }
+                    }
+
+                    /**
+                     * recurse into child windows
+                     */
+                    if ( const auto recursive_window = search( children[ i ] ) )
+                    {
+                        XFree( children );
+                        return recursive_window;
+                    }
+                }
+
+                /**
+                 * clear children. no results.
+                 * window isn't open or cannot be accessed.
+                 */
+                if ( children )
+                {
+                    XFree( children );
+                }
+                return 0;
+            };
+
+            /**
+             * search for game window
+             */
+            game_window = search( root_screen );
+            if ( !game_window )
+            {
+                log( "cs2 or tf2 window could not be found, thereby x11_sync cannot be done" );
+                return false;
+            }
+
+            /**
+             * get the window dimensions
+             */
+            XWindowAttributes attributes;
+            if ( XGetWindowAttributes( display, game_window, &attributes ) )
+            {
+                int x, y;
+                Window child_window;
+                if ( XTranslateCoordinates(
+                    display,
+                    game_window,
+                    root_screen,
+                    0,
+                    0,
+                    &x,
+                    &y,
+                    &child_window
+                ))
+                {
+                    window_dimensions[ 0 ] = x;
+                    window_dimensions[ 1 ] = y;
+                    window_dimensions[ 2 ] = attributes.width;
+                    window_dimensions[ 3 ] = attributes.height;
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    };
+
+    if( const auto x11_sync = fc2::call< bool >( "wayland_overlay_sync", FC2_LUA_TYPE_BOOLEAN ) )
+    {
+        find_window();
+    }
 
     log(
         "window dimensions: {}, {} - {}x{}",
@@ -301,13 +495,51 @@ int main( )
 
                 case FC2_TEAM_DRAW_TYPE_LINE:
                 {
-                    SDL_RenderLine(
-                            instance,
-                            dimensions_f[ 0 ],
-                            dimensions_f[ 1 ],
-                            dimensions_f[ 2 ],
-                            dimensions_f[ 3 ]
-                    );
+                    if ( !line_thickness )
+                    {
+                        SDL_RenderLine(
+                                instance,
+                                dimensions_f[ 0 ],
+                                dimensions_f[ 1 ],
+                                dimensions_f[ 2 ],
+                                dimensions_f[ 3 ]
+                        );
+                    }
+                    else
+                    {
+                        const auto dx = dimensions_f[ 2 ] - dimensions_f[ 0 ];
+                        const auto dy = dimensions_f[ 3 ] - dimensions_f[ 1 ];
+                        const auto length = std::sqrt( dx * dx + dy * dy );
+                        const auto unit_x = dx / length;
+                        const auto unit_y = dy / length;
+
+                        const auto px = -unit_y * ( style[ FC2_TEAM_DRAW_STYLE_THICKNESS ] / 2.0f );
+                        const auto py = unit_x * ( style[ FC2_TEAM_DRAW_STYLE_THICKNESS ] / 2.0f );
+
+                        const SDL_FPoint points[ 4 ] =
+{
+                            { dimensions_f[ 0 ] + px, dimensions_f[ 1 ] + py },
+                            { dimensions_f[ 0 ] - px, dimensions_f[ 1 ] - py },
+                            { dimensions_f[ 2 ] - px, dimensions_f[ 3 ] - py },
+                            { dimensions_f[ 2 ] + px, dimensions_f[ 3 ] + py }
+};
+
+                        SDL_Vertex vertexes[ 4 ];
+                        for ( int i = 0; i < 4; ++i )
+                        {
+                            vertexes[ i ].position = points[ i ];
+                            vertexes[ i ].color = SDL_FColor
+                            {
+                                static_cast< float >( style[ FC2_TEAM_DRAW_STYLE_RED ] ) / 255.f,
+                                static_cast< float >( style[ FC2_TEAM_DRAW_STYLE_GREEN ] ) / 255.f,
+                                static_cast< float >( style[ FC2_TEAM_DRAW_STYLE_BLUE ] )/ 255.f ,
+                                static_cast< float >( style[ FC2_TEAM_DRAW_STYLE_ALPHA ] ) / 255.f,
+                            };
+                        }
+
+                        const int indices[ 6 ] = { 0, 1, 2, 0, 2, 3 };
+                        SDL_RenderGeometry( instance, nullptr, vertexes, 4, indices, 6 );
+                    }
                     break;
                 }
 
