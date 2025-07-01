@@ -55,7 +55,8 @@
  * logging macro
  */
 #ifndef log
-    #define log(fmt_str, ...) fmt::println("[wayland-overlay] " fmt_str, ##__VA_ARGS__)
+    #define log(fmt_str, ...) \
+    do { fmt::print("[wayland-overlay] " fmt_str "\n", ##__VA_ARGS__); std::fflush(stdout); } while(0)
 #endif
 
 int x11_error_handler( Display * display, XErrorEvent * event )
