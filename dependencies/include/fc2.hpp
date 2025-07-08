@@ -11,7 +11,7 @@
  * @brief versioning
  */
 #define FC2_TEAM_VERSION_MAJOR 1
-#define FC2_TEAM_VERSION_MINOR 7
+#define FC2_TEAM_VERSION_MINOR 8
 
 /**
  * @brief max size of any string input. dynamically allocating this would be better. there are some unfortunate inconsistencies with this at times when it is dynamically allocated due to how some processors cache memory to improve performance.
@@ -26,7 +26,7 @@
 #endif
 
 #ifndef FC2_TEAM_BUFFER_SIZE
-#define FC2_TEAM_BUFFER_SIZE ( 32 * 1024 )
+#define FC2_TEAM_BUFFER_SIZE ( 64 * 1024 )
 #endif
 
 /**
@@ -59,50 +59,16 @@
 
 #define FC2T_FUNCTION FC2_TEAM_FORCE_INLINE static
 
-/**
- * @brief it would be users best interest to define one of these macros to help the project distinguish which solution to use.
- * if this is not defined, FC2T projects will always try to connect to Universe4 instead of Constellation4.
- */
-#if !defined(FC2_TEAM_UNIVERSE4) && !defined(FC2_TEAM_CONSTELLATION4) && !defined(FC2_TEAM_PARALLAX2)
-    #if defined(_MSC_VER)
-        #pragma message("Warning: FC2_TEAM_UNIVERSE4 or FC2_TEAM_CONSTELLATION4 or FC2_TEAM_PARALLAX2 is not defined. FC2T will assume the target solution is global (all solutions).")
-    #elif defined(__GNUC__) || defined(__clang__)
-        #warning "FC2_TEAM_UNIVERSE4 or FC2_TEAM_CONSTELLATION4 or FC2_TEAM_PARALLAX2 is not defined. FC2T will assume the target solution is global (all solutions)."
-    #else
-        #pragma message("Warning: FC2_TEAM_UNIVERSE4 or FC2_TEAM_CONSTELLATION4 or FC2_TEAM_PARALLAX2 is not defined. FC2T will assume the target solution is global (all solutions).")
-    #endif
-#endif
-
-/**
+/*
  * @brief SHM keys
  */
 #ifndef SHM_KEY_LINUX_GLOBAL
-    #define SHM_KEY_LINUX_GLOBAL 329032490
-#endif
-#ifndef SHM_KEY_LINUX_UNIVERSE
-    #define SHM_KEY_LINUX_UNIVERSE 329032496
-#endif
-#ifndef SHM_KEY_LINUX_CONSTELLATION
-    #define SHM_KEY_LINUX_CONSTELLATION 329032497
-#endif
-#ifndef SHM_KEY_LINUX_PARALLAX
-    #define SHM_KEY_LINUX_PARALLAX 329032498
+    #define SHM_KEY_LINUX_GLOBAL 23489234
 #endif
 #ifndef SHM_KEY_WIN_GLOBAL
-    #define SHM_KEY_WIN_GLOBAL "Global\\329032490"
+    #define SHM_KEY_WIN_GLOBAL "Global\\23489234"
 #endif
-#ifndef SHM_KEY_WIN_UNIVERSE
-    #define SHM_KEY_WIN_UNIVERSE "Global\\329032496"
-#endif
-#ifndef SHM_KEY_WIN_CONSTELLATION
-    #define SHM_KEY_WIN_CONSTELLATION "Global\\329032497"
-#endif
-#ifndef SHM_KEY_WIN_PARALLAX
-    #define SHM_KEY_WIN_PARALLAX "Global\\329032498"
-#endif
-#ifndef SHM_KEY_WIN_AURORA2
-    #define SHM_KEY_WIN_AURORA2 "Global\\329032499"
-#endif
+
 
 /**
  * @brief error codes
@@ -190,6 +156,8 @@ enum FC2_TEAM_DRAW_TYPE : int
     FC2_TEAM_DRAW_TYPE_TEXT,
     FC2_TEAM_DRAW_TYPE_CIRCLE,
     FC2_TEAM_DRAW_TYPE_CIRCLE_FILLED,
+    FC2_TEAM_DRAW_TYPE_TRIANGLE,
+    FC2_TEAM_DRAW_TYPE_TRIANGLE_FILLED,
 };
 
 /**
@@ -215,6 +183,21 @@ enum FC2_TEAM_DRAW_DIMENSIONS : int
     FC2_TEAM_DRAW_DIMENSIONS_TOP,
     FC2_TEAM_DRAW_DIMENSIONS_RIGHT,
     FC2_TEAM_DRAW_DIMENSIONS_BOTTOM,
+
+    FC2_TEAM_DRAW_DIMENSIONS_LEFT2,
+    FC2_TEAM_DRAW_DIMENSIONS_TOP2,
+    FC2_TEAM_DRAW_DIMENSIONS_RIGHT2,
+    FC2_TEAM_DRAW_DIMENSIONS_BOTTOM2,
+
+    FC2_TEAM_DRAW_DIMENSIONS_LEFT3,
+    FC2_TEAM_DRAW_DIMENSIONS_TOP3,
+    FC2_TEAM_DRAW_DIMENSIONS_RIGHT3,
+    FC2_TEAM_DRAW_DIMENSIONS_BOTTOM3,
+
+    FC2_TEAM_DRAW_DIMENSIONS_LEFT4,
+    FC2_TEAM_DRAW_DIMENSIONS_TOP4,
+    FC2_TEAM_DRAW_DIMENSIONS_RIGHT4,
+    FC2_TEAM_DRAW_DIMENSIONS_BOTTOM4,
 };
 
 /**
@@ -243,29 +226,10 @@ enum FC2_TEAM_DRAW_DIMENSIONS : int
 /**
  * @brief shared memory key (do not modify)
  */
-#ifdef FC2_TEAM_CONSTELLATION4
-    #define SHM_KEY SHM_KEY_LINUX_CONSTELLATION
-#elif defined(FC2_TEAM_PARALLAX2)
-    #define SHM_KEY SHM_KEY_LINUX_PARALLAX
-#elif defined(FC2_TEAM_UNIVERSE4)
-    #define SHM_KEY SHM_KEY_LINUX_UNIVERSE
-#else
-    #define SHM_KEY SHM_KEY_LINUX_GLOBAL
-#endif
 #else
 #define NOMINMAX
 #include <windows.h>
 #include <iterator>
-
-#ifdef FC2_TEAM_CONSTELLATION4
-    #define SHM_KEY SHM_KEY_WIN_CONSTELLATION
-#elif defined(FC2_TEAM_PARALLAX2)
-    #define SHM_KEY SHM_KEY_WIN_PARALLAX
-#elif defined(FC2_TEAM_UNIVERSE4)
-    #define SHM_KEY SHM_KEY_WIN_UNIVERSE
-#else
-    #define SHM_KEY SHM_KEY_WIN_GLOBAL
-#endif
 #endif
 
 namespace fc2
@@ -426,11 +390,11 @@ namespace fc2
                 struct detail
                 {
                     char text[128];
-                    std::int32_t dimensions[4];
+                    std::int32_t dimensions[16];
                     std::int32_t style[7];
                 };
 
-               detail details[ 100 ] { };
+               detail details[ 256 ] { };
             };
 
             /**
@@ -540,7 +504,7 @@ namespace fc2
                 /**
                  * @brief find server
                  */
-                id = shmget( SHM_KEY, FC2_TEAM_BUFFER_SIZE, 0666);
+                id = shmget( SHM_KEY_LINUX_GLOBAL, FC2_TEAM_BUFFER_SIZE, 0666);
 
                 if( id < 0 )
                 {
@@ -579,7 +543,7 @@ namespace fc2
                  *
                  * on Windows, OpenFileMapping will succeed even if it doesn't have FILE_MAP_ALL_ACCESS permissions. this is extremely misleading. if you notice your projects not working, it is important to note that you should execute it with administrator permissions.
                  */
-                shm_handle = OpenFileMappingA( FILE_MAP_ALL_ACCESS, FALSE, SHM_KEY );
+                shm_handle = OpenFileMappingA( FILE_MAP_ALL_ACCESS, FALSE, SHM_KEY_WIN_GLOBAL );
 
                 /**
                  * @brief universe4 isn't open. cant connect to server.
@@ -702,7 +666,7 @@ namespace fc2
                 /**
                  * @brief wait until completed
                  */
-                const unsigned long long timeout_time = std::time(nullptr) + (information->id == FC2_TEAM_REQUESTS::FC2_TEAM_REQUESTS_API || information->id == FC2_TEAM_REQUESTS::FC2_TEAM_REQUESTS_HTTP_REQUEST ? FC2_TEAM_REQUESTS_API_TIMEOUT : FC2_TEAM_REQUESTS_TIMEOUT );
+                const unsigned long long timeout_time = static_cast< unsigned long long >( std::time(nullptr) ) + (information->id == FC2_TEAM_REQUESTS::FC2_TEAM_REQUESTS_API || information->id == FC2_TEAM_REQUESTS::FC2_TEAM_REQUESTS_HTTP_REQUEST ? FC2_TEAM_REQUESTS_API_TIMEOUT : FC2_TEAM_REQUESTS_TIMEOUT );
 
                 while( information->status == FC2_TEAM_STATUS::FC2_TEAM_SERVER_PENDING ) {
                     if( static_cast< unsigned long long >( std::time(nullptr) ) > timeout_time )
@@ -807,7 +771,7 @@ namespace fc2
             const auto epoch = now.time_since_epoch();
             const auto ticks = std::chrono::duration_cast<std::chrono::microseconds>(epoch).count();
 
-            data.ping = ticks;
+            data.ping = static_cast< unsigned long long >( ticks );
         }
 
         const auto [ping, pong] = detail::client::send< detail::requests::ping_pong >( FC2_TEAM_REQUESTS_PING, data );

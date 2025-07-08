@@ -1,5 +1,5 @@
 /**
- * @title wayland-overlay
+ * @title linux-overlay
  * @file main.cpp
  * @author typedef
  */
@@ -56,7 +56,7 @@
  */
 #ifndef log
     #define log(fmt_str, ...) \
-    do { fmt::print("[wayland-overlay] " fmt_str "\n", ##__VA_ARGS__); std::fflush(stdout); } while(0)
+    do { fmt::print("[linux-overlay] " fmt_str "\n", ##__VA_ARGS__); std::fflush(stdout); } while(0)
 #endif
 
 int x11_error_handler( Display * display, XErrorEvent * event )
@@ -81,22 +81,24 @@ int main( )
     log( "started. welcome {}", session_information.username );
 
     /**
-     * get window dimensions from wayland_overlay.lua
+     * get window dimensions from linux_overlay.lua
      *
      * after, download the UbuntuMono font inside of FC2
      * and return the directory and file location for SDL3_TTF
      */
     std::array< unsigned int, 4 > window_dimensions = {};
-    window_dimensions[ 0 ] = fc2::call< unsigned int >( "wayland_overlay_x", FC2_LUA_TYPE_INT );
-    window_dimensions[ 1 ] = fc2::call< unsigned int >( "wayland_overlay_y", FC2_LUA_TYPE_INT );
-    window_dimensions[ 2 ] = fc2::call< unsigned int >( "wayland_overlay_w", FC2_LUA_TYPE_INT );
-    window_dimensions[ 3 ] = fc2::call< unsigned int >( "wayland_overlay_h", FC2_LUA_TYPE_INT );
+    window_dimensions[ 0 ] = fc2::call< unsigned int >( "linux_overlay_x", FC2_LUA_TYPE_INT );
+    window_dimensions[ 1 ] = fc2::call< unsigned int >( "linux_overlay_y", FC2_LUA_TYPE_INT );
+    window_dimensions[ 2 ] = fc2::call< unsigned int >( "linux_overlay_w", FC2_LUA_TYPE_INT );
+    window_dimensions[ 3 ] = fc2::call< unsigned int >( "linux_overlay_h", FC2_LUA_TYPE_INT );
 
-    const auto line_thickness = fc2::call< bool >( "wayland_overlay_line_thickness", FC2_LUA_TYPE_BOOLEAN );
+    const auto line_thickness = fc2::call< bool >( "linux_overlay_line_thickness", FC2_LUA_TYPE_BOOLEAN );
     if ( line_thickness )
     {
         log( "line_thickness is enabled, therefore lines might be slower to render");
     }
+
+    const auto limit_frames_ms = fc2::call< unsigned int >( "linux_overlay_limit_frames_ms", FC2_LUA_TYPE_INT );
 
     /**
      * get sync settings (x11 only)
@@ -258,7 +260,7 @@ int main( )
         });
     };
 
-    if( const auto x11_sync = fc2::call< bool >( "wayland_overlay_sync", FC2_LUA_TYPE_BOOLEAN ) )
+    if( const auto x11_sync = fc2::call< bool >( "linux_overlay_sync", FC2_LUA_TYPE_BOOLEAN ) )
     {
         find_window();
     }
@@ -271,7 +273,7 @@ int main( )
         window_dimensions[ 3 ]
     );
 
-    const auto font_path = fc2::call< std::string >( "wayland_overlay_font", FC2_LUA_TYPE_STRING );
+    const auto font_path = fc2::call< std::string >( "linux_overlay_font", FC2_LUA_TYPE_STRING );
     if( font_path.empty() )
     {
         log( "font may have been downloaded for the first time. restart" );
@@ -294,7 +296,7 @@ int main( )
     /**
      * initialize TTF
      *
-     * statically compiled inside of wayland-overlay
+     * statically compiled inside of linux-overlay
      * see /dependencies/
      */
     if( !TTF_Init() )
@@ -317,8 +319,10 @@ int main( )
      * is 0,0, the DE will automatically center the window or move it somewhere predetermined.
      * same applies for window size.
      */
+
+    const auto window_title = fc2::call< std::string >( "linux_overlay_get_title", FC2_LUA_TYPE_STRING );
     SDL_Window * _parent = SDL_CreateWindow(
-        "fc2t overlay",
+        window_title.c_str(),
         0,
         0,
         0
@@ -464,12 +468,27 @@ int main( )
                 style[ FC2_TEAM_DRAW_STYLE_ALPHA ]
             );
 
-            const std::array< float, 4 > dimensions_f =
+            const std::array< float, 16 > dimensions_f =
             {
                 static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_LEFT ] ),
                 static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_TOP ] ),
                 static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT ] ),
-                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM ] )
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM ] ),
+
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_LEFT2 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_TOP2 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT2 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM2 ] ),
+
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_LEFT3 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_TOP3 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT3 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM3 ] ),
+
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_LEFT4 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_TOP4 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_RIGHT4 ] ),
+                static_cast< float >( dimensions[ FC2_TEAM_DRAW_DIMENSIONS_BOTTOM4 ] ),
             };
 
             switch( style[ FC2_TEAM_DRAW_STYLE_TYPE ] )
@@ -669,12 +688,92 @@ int main( )
                     break;
                 }
 
+                case FC2_TEAM_DRAW_TYPE_TRIANGLE:
+                {
+                    const float x1 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_LEFT];
+                    const float y1 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_TOP];
+                    const float x2 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_LEFT2];
+                    const float y2 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_TOP2];
+                    const float x3 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_LEFT3];
+                    const float y3 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_TOP3];
+
+                    const float r = static_cast<float>(style[FC2_TEAM_DRAW_STYLE_RED])   / 255.0f;
+                    const float g = static_cast<float>(style[FC2_TEAM_DRAW_STYLE_GREEN]) / 255.0f;
+                    const float b = static_cast<float>(style[FC2_TEAM_DRAW_STYLE_BLUE])  / 255.0f;
+                    const float a = static_cast<float>(style[FC2_TEAM_DRAW_STYLE_ALPHA]) / 255.0f;
+
+                    SDL_SetRenderDrawColor(instance, r, g, b, a);
+
+                    SDL_RenderLine(instance, x1, y1, x2, y2);
+                    SDL_RenderLine(instance, x2, y2, x3, y3);
+                    SDL_RenderLine(instance, x3, y3, x1, y1);
+                    break;
+                }
+
+
+                case FC2_TEAM_DRAW_TYPE_TRIANGLE_FILLED:
+                {
+                    const float x1 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_LEFT];
+                    const float y1 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_TOP];
+                    const float x2 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_LEFT2];
+                    const float y2 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_TOP2];
+                    const float x3 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_LEFT3];
+                    const float y3 = dimensions_f[FC2_TEAM_DRAW_DIMENSIONS_TOP3];
+
+                    SDL_Vertex vertices[3] = {
+                        {
+                            .position = { x1, y1 },
+                            .color = {
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_RED]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_GREEN]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_BLUE]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_ALPHA]) / 255.f,
+                            }
+                        },
+                        {
+                            .position = { x2, y2 },
+                            .color = {
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_RED]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_GREEN]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_BLUE]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_ALPHA]) / 255.f,
+                            }
+                        },
+                        {
+                            .position = { x3, y3 },
+                            .color = {
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_RED]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_GREEN]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_BLUE]) / 255.f,
+                                static_cast<float>(style[FC2_TEAM_DRAW_STYLE_ALPHA]) / 255.f,
+                            }
+                        }
+                    };
+
+                    int indices[3] = { 0, 1, 2 };
+
+                    SDL_RenderGeometry(
+                        instance,
+                        nullptr,
+                        vertices,
+                        3,
+                        indices,
+                        3
+                    );
+                    break;
+                }
+
                 default:
                 case FC2_TEAM_DRAW_TYPE_NONE: break;
             }
         }
 
         SDL_RenderPresent(instance);
+
+        if ( limit_frames_ms > 0 )
+        {
+            SDL_Delay( limit_frames_ms );
+        }
     }
 
     /**
