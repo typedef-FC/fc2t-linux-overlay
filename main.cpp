@@ -103,7 +103,7 @@ int main( )
     /**
      * get sync settings (x11 only)
      */
-    static auto find_window = [&window_dimensions ]( ) -> void
+    static auto find_window = [ &window_dimensions ]( ) -> bool
     {
         /**
          * get x11 display
@@ -116,7 +116,7 @@ int main( )
             /**
              * x11 not available
              */
-            return;
+            return false;
         }
 
         /**
@@ -134,7 +134,6 @@ int main( )
             }
 
             XSetErrorHandler( x11_error_handler );
-            log( "x11 initialized" );
 
             /**
              * search for window
@@ -255,14 +254,18 @@ int main( )
                     return true;
                 }
             }
-
-            return false;
         });
+
+        return true;
     };
 
-    if( const auto x11_sync = fc2::call< bool >( "linux_overlay_sync", FC2_LUA_TYPE_BOOLEAN ) )
+    const auto x11_sync = fc2::call< bool >( "linux_overlay_sync", FC2_LUA_TYPE_BOOLEAN );
+    if( x11_sync )
     {
-        find_window();
+        if ( !find_window() )
+        {
+            log( "x11 sync could not be done" );
+        }
     }
 
     log(
@@ -400,6 +403,11 @@ int main( )
             SDL_DestroyRenderer
     );
 
+    /**
+     * alpha/transparency.
+     */
+    SDL_SetRenderDrawBlendMode( renderer.get(), SDL_BLENDMODE_BLEND);
+
     log( "window and renderer created" );
 
     /**
@@ -424,6 +432,7 @@ int main( )
      * rendering
      */
     SDL_Event event;
+    std::chrono::time_point< std::chrono::steady_clock > last_x11_sync = std::chrono::steady_clock::now();
     while (true)
     {
         SDL_PollEvent(&event);
@@ -444,6 +453,23 @@ int main( )
         {
             log( "solution appears to have closed" );
             break;
+        }
+
+        if ( x11_sync )
+        {
+            if ( const auto time_now = std::chrono::steady_clock::now(); time_now - last_x11_sync > std::chrono::seconds( 5 ) )
+            {
+                if ( find_window() )
+                {
+                    SDL_SetWindowPosition(
+                        parent.get(),
+                        window_dimensions[ 0 ],
+                        window_dimensions[ 1 ]
+                    );
+                }
+
+                last_x11_sync = time_now;
+            }
         }
 
         /**
@@ -495,11 +521,48 @@ int main( )
             {
                 case FC2_TEAM_DRAW_TYPE_BOX:
                 {
-                    const SDL_FRect rect = { dimensions_f[ 0 ], dimensions_f[ 1 ], dimensions_f[ 2 ], dimensions_f[ 3 ] };
-                    SDL_RenderRect(
-                            instance,
-                            & rect
-                    );
+                    const float x = dimensions_f[0];
+                    const float y = dimensions_f[1];
+                    const float w = dimensions_f[2];
+                    const float h = dimensions_f[3];
+                    const float thickness = static_cast<float>(style[FC2_TEAM_DRAW_STYLE_THICKNESS]);
+
+                    SDL_FRect top =
+                    {
+                        x,
+                        y,
+                        w,
+                        thickness
+                    };
+
+                    SDL_FRect bottom =
+                    {
+                        x,
+                        y + h - thickness,
+                        w,
+                        thickness
+                    };
+
+                    SDL_FRect left =
+                    {
+                        x,
+                        y,
+                        thickness,
+                        h
+                    };
+
+                    SDL_FRect right =
+                    {
+                        x + w - thickness,
+                        y,
+                        thickness,
+                        h
+                    };
+
+                    SDL_RenderFillRect(instance, &top);
+                    SDL_RenderFillRect(instance, &bottom);
+                    SDL_RenderFillRect(instance, &left);
+                    SDL_RenderFillRect(instance, &right);
                     break;
                 }
 
@@ -537,12 +600,12 @@ int main( )
                         const auto py = unit_x * ( style[ FC2_TEAM_DRAW_STYLE_THICKNESS ] / 2.0f );
 
                         const SDL_FPoint points[ 4 ] =
-{
+                        {
                             { dimensions_f[ 0 ] + px, dimensions_f[ 1 ] + py },
                             { dimensions_f[ 0 ] - px, dimensions_f[ 1 ] - py },
                             { dimensions_f[ 2 ] - px, dimensions_f[ 3 ] - py },
                             { dimensions_f[ 2 ] + px, dimensions_f[ 3 ] + py }
-};
+                        };
 
                         SDL_Vertex vertexes[ 4 ];
                         for ( int i = 0; i < 4; ++i )
